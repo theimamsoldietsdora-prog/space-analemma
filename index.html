@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاكاة حركة الشمس والأرض السينمائية</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000; 
+            font-family: sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        #info {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 20px;
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(255,255,255,0.1);
+        }
+        h1 { margin: 0 0 5px 0; font-size: 16px; color: #fff; }
+        p { margin: 0; font-size: 12px; color: #aaa; }
+    </style>
+    <!-- استدعاء المكتبات البرمجية ثلاثية الأبعاد عبر الـ CDN لتعمل فوراً على السيرفر -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body>
+
+<div id="info">
+    <h1>أنيميشن فلكي سينمائي 3D</h1>
+    <p>الأرض ثابتة في المركز • الشمس ترسم مسار ∞ عمودي وتدور حول محورها</p>
+    <p style="font-size: 10px; margin-top: 5px; color: #666;">* اسحب بالفأرة لتدوير الكاميرا ورؤية الأبعاد</p>
+</div>
+
+<script>
+    // 1. إنشاء المشهد والإضاءة والـ Renderer
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    // إضاءة محيطية خافتة جداً لتعطي عمقاً للجانب المظلم من الأرض
+    const ambientLight = new THREE.AmbientLight(0x111622);
+    scene.add(ambientLight);
+
+    // 2. إنشاء خلفية النجوم العميقة (Deep Space Stars)
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsCount = 4000;
+    const starPositions = new Float32Array(starsCount * 3);
+
+    for(let i = 0; i < starsCount * 3; i++) {
+        starPositions[i] = (Math.random() - 0.5) * 500; // توزيع عشوائي متباعد
+    }
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, sizeAttenuation: true });
+    const starField = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(starField);
+
+    // 3. تصميم كوكب الأرض (ثابت تماماً في المركز)
+    const earthGeometry = new THREE.SphereGeometry(2.5, 64, 64);
+    const earthMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x1b4965, 
+        roughness: 0.6,
+        metalness: 0.2,
+        bumpScale: 0.05
+    });
+    const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+    scene.add(earth);
+
+    // 4. تصميم الشمس (مضيئة وتشع بنور حقيقي)
+    const sunGeometry = new THREE.SphereGeometry(0.9, 32, 32);
+    // خامة متوهجة للشمس لا تتأثر بظلال الفضاء
+    const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffdb4d });
+    const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+    scene.add(sun);
+
+    // مصباح ضوئي نقطي منبعث من مركز الشمس ليصنع ضوءاً واقعياً وظلالاً على الأرض
+    const sunLight = new THREE.PointLight(0xffffff, 2.5, 100);
+    sun.add(sunLight);
+
+    // 5. إعداد الكاميرا والتحكم التفاعلي بالماوس أو اللمس
+    camera.position.set(0, 12, 22);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // 6. تشغيل حركة الأنالما (مسار اللانهائية العمودي) والدوران الذاتي
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const elapsedTime = clock.getElapsedTime();
+        const orbitSpeed = elapsedTime * 0.4; // سرعة دوران الشمس حول الأرض
+
+        // نصف قطر المدار الأفقي
+        const orbitRadius = 11; 
+
+        // معادلة رسم شكل 8 الرأسي (Analemma Pattern)
+        // الحركة الأفقية العادية (الدوران الدائري)
+        sun.position.x = orbitRadius * Math.cos(orbitSpeed);
+        sun.position.z = orbitRadius * Math.sin(orbitSpeed);
+        
+        // الحركة الرأسية التزامنية (تصنع عقدة رقم 8 صعوداً وهبوطاً مرتين لكل دورة كاملة)
+        sun.position.y = 5.5 * Math.sin(2 * orbitSpeed); 
+
+        // الدوران المحوري الذاتي السريع للشمس حول محورها الأفقي
+        sun.rotation.y += 0.06;
+
+        // تحديث حركة النجوم ببطء شديد لإعطاء إحساس بهدوء الكون
+        starField.rotation.y = elapsedTime * 0.005;
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    // إعادة ضبط الأبعاد بمرونة عند تكبير أو تصغير المتصفح
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>
